@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database (never commit the live DB)
+*.db
+*.sqlite
+*.sqlite3
+
+# Simulation outputs (large binary/CSV – regenerate with simulate.py)
+outputs/experiment_cases.csv
+outputs/measured_review_times.csv
+outputs/experiment_comparison.png
+static/images/experiment_charts.png
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/

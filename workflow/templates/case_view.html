@@ -1,0 +1,178 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Diagnostic View - {{ case.case_id }} ({{ case.patient_ref }}){% endblock %}
+
+{% block content %}
+<!-- Top Header & Metadata Bar -->
+<div class="card" style="margin-bottom: 1.25rem; padding: 1rem 1.5rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <a href="{{ url_for('page_worklist', rad_id=case.assigned_rad_id or 'RAD-001') }}" class="btn btn-outline btn-sm">
+        &larr; Back to Worklist
+      </a>
+      <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <h1 style="font-size: 1.4rem; font-weight: 700; font-family: var(--font-mono);">{{ case.case_id }}</h1>
+          <span style="font-family: var(--font-mono); color: var(--accent-cyan); font-weight: 600;">{{ case.patient_ref }}</span>
+          <span class="badge {% if case.priority_label == 'Critical' %}badge-critical{% elif case.priority_label == 'High' %}badge-high{% else %}badge-routine{% endif %}">
+            {{ case.priority_label }} ({{ case.priority_score }} pts)
+          </span>
+          {% if case.urgency_flag %}
+          <span class="badge badge-critical">STAT CLINIC URGENT</span>
+          {% endif %}
+          <span id="case-status-badge" data-status="{{ case.status }}" class="badge badge-status">
+            {{ case.status }}
+          </span>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">
+          <strong>{{ case.modality }} - {{ case.body_part }}</strong> &bull;
+          Referring Clinic: <strong>{{ case.clinic_name or case.clinic_id }}</strong> &bull;
+          Assigned Radiologist: <strong>{{ case.radiologist_name or case.assigned_rad_id or 'Unassigned' }}</strong>
+        </p>
+      </div>
+    </div>
+
+    <!-- Active Timer -->
+    <div style="text-align: right;">
+      <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); display: block;">Review Duration</span>
+      <span id="review-timer" style="font-family: var(--font-mono); font-size: 1.35rem; font-weight: 700; color: var(--accent-cyan);">00:00</span>
+    </div>
+  </div>
+</div>
+
+<!-- Main Split Screen Workspace -->
+<div class="case-workspace">
+  
+  <!-- Left Column: Primary Medical Scan PACS Viewer -->
+  <div class="viewer-panel">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+      <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-muted);">PRIMARY STUDY SCAN</span>
+      <div style="display: flex; gap: 0.4rem;">
+        <button class="btn btn-outline btn-sm" onclick="adjustContrast(100, 100, false)">Normal</button>
+        <button class="btn btn-outline btn-sm" onclick="adjustContrast(170, 110, false)">High C/W</button>
+        <button class="btn btn-outline btn-sm" onclick="adjustContrast(120, 100, true)">Invert</button>
+        <button class="btn btn-outline btn-sm" onclick="resetImage()">Reset</button>
+      </div>
+    </div>
+
+    <div class="viewer-image-wrap">
+      {% set img_url = url_for('static', filename=case.image_path.replace('static/', '')) if case.image_path.startswith('static/') else url_for('static', filename='images/' + case.case_id + '.jpg') %}
+      <img id="main-scan-img" src="{{ img_url }}" alt="Scan for {{ case.case_id }}"
+           onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/CASE-0001.jpg') }}';">
+    </div>
+
+    <div style="margin-top: 0.75rem; display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-dim); font-family: var(--font-mono);">
+      <span>WINDOW: Standard PACS C/W</span>
+      <span>UPLOADED: {{ case.upload_time }}</span>
+    </div>
+  </div>
+
+  <!-- Right Column: AI Content-Based Image Retrieval (CBIR) -->
+  <div class="similar-panel">
+    <div style="margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <h2 style="font-size: 1.05rem; font-weight: 700; color: var(--text-main);">Top-10 Similar Historical Cases</h2>
+          <span class="badge-ai" style="font-size: 0.65rem;">CBIR</span>
+        </div>
+        <span id="viewed-counter" class="badge badge-routine" style="font-size: 0.7rem;">0 of 10 examined</span>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.25rem;">
+        Latency: <strong>{{ retrieval_meta.ms }}ms</strong> &bull; Mode: <strong style="font-family: var(--font-mono);">{{ retrieval_meta.mode }}</strong>
+      </p>
+    </div>
+
+    <div class="similar-scroll">
+      {% if cbir and cbir.results %}
+        {% for sim in cbir.results %}
+        <div class="similar-card" data-case-id="{{ sim.similar_case_id }}">
+          {% set thumb_url = url_for('static', filename=sim.thumbnail_path.replace('static/', '')) if sim.thumbnail_path.startswith('static/') else url_for('static', filename='images/' + sim.similar_case_id + '.jpg') %}
+          <img class="similar-thumb" src="{{ thumb_url }}" alt="{{ sim.similar_case_id }}"
+               onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/CASE-0001.jpg') }}';">
+          
+          <div class="similar-info">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+              <span style="font-weight: 700; font-size: 0.85rem; font-family: var(--font-mono); color: var(--accent-cyan);">
+                #{{ sim.rank }} &bull; {{ sim.similar_case_id }}
+              </span>
+              <div style="display: flex; gap: 0.35rem; align-items: center;">
+                <span class="badge badge-routine" style="font-size: 0.7rem;">
+                  Sim: {{ (sim.score * 100) | round(1) }}%
+                </span>
+                {% if sim.reranked_score %}
+                <span class="badge-ai" style="font-size: 0.65rem;" title="Context-aware re-ranked score">
+                  Re-rank: {{ (sim.reranked_score * 100) | round(1) }}%
+                </span>
+                {% endif %}
+              </div>
+            </div>
+
+            <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.35; margin-bottom: 0.35rem;">
+              {{ sim.finding }}
+            </p>
+            <span style="font-size: 0.7rem; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.5px;">Click to compare findings &bull;</span>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p style="color: var(--text-dim); text-align: center; padding: 2rem;">No similar historical cases retrieved.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Bottom Section: Diagnostic Reporting Console -->
+<div class="report-console">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+    <h3 style="font-size: 1.1rem; font-weight: 600;">Diagnostic Report Console</h3>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+      <span style="font-size: 0.8rem; color: var(--text-dim);">Insert Quick Phrase:</span>
+      <button class="btn btn-outline btn-sm" onclick="insertPhrase('No acute intracranial hemorrhage, midline shift, or mass effect.')">Normal Brain</button>
+      <button class="btn btn-outline btn-sm" onclick="insertPhrase('Bilateral lung fields clear. Cardiac silhouette normal. Costophrenic angles sharp.')">Clear Chest</button>
+      <button class="btn btn-outline btn-sm" onclick="insertPhrase('Focal consolidation observed consistent with acute lobar pneumonia.')">Pneumonia</button>
+    </div>
+  </div>
+
+  <textarea id="report-text" class="report-textarea" 
+            {% if case.status == 'Uploaded' or case.status == 'Assigned' %}disabled placeholder="Click 'Start Review' above to begin reading and recording turnaround time..."{% elif case.status == 'Reported' or case.status == 'Returned_To_Clinic' %}disabled{% else %}placeholder="Enter radiological findings and diagnostic impression..."{% endif %}>{{ case.report_text or '' }}</textarea>
+
+  <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+    <div style="font-size: 0.85rem; color: var(--text-muted);">
+      {% if case.report_submit_time %}
+      <span>Report Completed: <strong>{{ case.report_submit_time }}</strong></span>
+      {% if case.used_similar_cases %}
+      <span class="badge badge-routine" style="margin-left: 0.5rem;">Used CBIR Reference</span>
+      {% endif %}
+      {% else %}
+      <span>Review status: <strong>{{ case.status }}</strong></span>
+      {% endif %}
+    </div>
+
+    <div style="display: flex; gap: 0.75rem;">
+      {% if case.status == 'Assigned' %}
+      <button id="btn-start-review" class="btn btn-cyan" 
+              data-case-id="{{ case.case_id }}" data-rad-id="{{ case.assigned_rad_id or 'RAD-001' }}">
+        Start Review &rarr;
+      </button>
+      {% endif %}
+
+      <button id="btn-submit-report" class="btn btn-success" 
+              data-case-id="{{ case.case_id }}" data-rad-id="{{ case.assigned_rad_id or 'RAD-001' }}"
+              {% if case.status != 'In_Review' %}disabled style="{% if case.status == 'Reported' or case.status == 'Returned_To_Clinic' %}display: none;{% endif %}"{% endif %}>
+        Submit Diagnostic Report
+      </button>
+
+      {% if case.status == 'Reported' %}
+      <button id="btn-return-clinic" class="btn btn-primary" data-case-id="{{ case.case_id }}">
+        Return Report to Referring Clinic &rarr;
+      </button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/case_view.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,92 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Role Selector - Tele-Radiology Workflow{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+  <h1 style="font-size: 1.85rem; font-weight: 700; color: var(--text-main);">Tele-Radiology System Portal</h1>
+  <p style="color: var(--text-muted); margin-top: 0.25rem;">Select your operational role to access prioritized worklists, diagnostic reading views, hospital analytics, or clinic tracking.</p>
+</div>
+
+<!-- Section 1: Radiologist Worklists -->
+<div class="card">
+  <div class="card-header">
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <h2 class="card-title">Radiologist Worklist Access</h2>
+    </div>
+    <span class="badge badge-status">6 Registered Specialists</span>
+  </div>
+
+  <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+    Each radiologist receives cases routed dynamically according to anatomical subspecialty, current workload, and capacity.
+  </p>
+
+  <div class="role-grid">
+    {% for rad in radiologists %}
+    <div class="role-card">
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+          <h3 style="font-size: 1.1rem; font-weight: 600;">{{ rad.name }}</h3>
+          <span class="badge {% if rad.subspecialty == 'Neuro' %}badge-critical{% elif rad.subspecialty == 'Chest' %}badge-high{% else %}badge-routine{% endif %}">
+            {{ rad.subspecialty }}
+          </span>
+        </div>
+        <p style="color: var(--text-dim); font-size: 0.85rem; font-family: var(--font-mono);">ID: {{ rad.rad_id }}</p>
+      </div>
+
+      <div style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Active Specialist</span>
+        <a href="{{ url_for('page_worklist', rad_id=rad.rad_id) }}" class="btn btn-primary btn-sm">
+          Open Worklist &rarr;
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Section 2: Hospital Admin & Clinic Portals -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+  
+  <!-- Hospital Management Dashboard -->
+  <div class="card">
+    <div class="card-header">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        <h2 class="card-title">Hospital Analytics</h2>
+      </div>
+      <span class="badge badge-high">Executive</span>
+    </div>
+    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
+      Monitor real-time throughput, turnaround time (TAT), SLA compliance, specialist workload balance, and impending breach alerts.
+    </p>
+    <a href="{{ url_for('page_hospital_dashboard') }}" class="btn btn-cyan" style="width: 100%;">
+      Enter Hospital Operations Dashboard &rarr;
+    </a>
+  </div>
+
+  <!-- Referring Clinic Status Portals -->
+  <div class="card">
+    <div class="card-header">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <h2 class="card-title">Referring Clinic Portals</h2>
+      </div>
+      <span class="badge badge-routine">Client Sites</span>
+    </div>
+    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.75rem;">
+      Track case lifecycle, diagnostic report completion, and transmission status for partner sites:
+    </p>
+    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+      {% for cln in clinics %}
+      <a href="{{ url_for('page_clinic_status', clinic_id=cln.clinic_id) }}" class="btn btn-outline btn-sm" style="justify-content: space-between;">
+        <span>{{ cln.name }}</span>
+        <span style="font-family: var(--font-mono); color: var(--text-muted);">{{ cln.clinic_id }} &rarr;</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

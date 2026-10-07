@@ -1,0 +1,58 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Tele-Radiology Workflow Intelligence{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    /* Pink theme defaults for every Chart.js chart on the site */
+    Chart.defaults.color = '#7d5a6c';
+    Chart.defaults.borderColor = 'rgba(244, 114, 182, 0.18)';
+    Chart.defaults.font.family = "'Plus Jakarta Sans', 'Segoe UI', sans-serif";
+    Chart.defaults.font.size = 14;
+    window.PINK_PALETTE = ['#ec4899', '#f9a8d4', '#be185d', '#fbcfe8', '#db2777', '#f472b6'];
+  </script>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="brand">
+      <a href="{{ url_for('page_role_select') }}" style="display: flex; align-items: center; gap: 0.6rem;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+        <span>TeleRad Workflow</span>
+      </a>
+      <span class="badge-ai">AI-Assisted CBIR</span>
+    </div>
+
+    <ul class="nav-links">
+      <li><a href="{{ url_for('page_role_select') }}" class="{% if request.path == '/' %}active{% endif %}">Role Selector</a></li>
+      <li><a href="{{ url_for('page_hospital_dashboard') }}" class="{% if request.path.startswith('/hospital') %}active{% endif %}">Hospital Analytics</a></li>
+      <li><a href="{{ url_for('page_experiment_results') }}" class="{% if request.path.startswith('/experiment') %}active{% endif %}">Workflow Experiment</a></li>
+      <li>
+        <span class="badge badge-status" id="nav-system-status">System: Online</span>
+      </li>
+    </ul>
+  </header>
+
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <p>AI-Assisted Intelligent Tele-Radiology Workflow Management System &bull; University Group Project (Member 3: Workflow Intelligence)</p>
+    <p style="margin-top: 0.25rem;">Flask &bull; SQLite &bull; Vanilla JavaScript &bull; Chart.js</p>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

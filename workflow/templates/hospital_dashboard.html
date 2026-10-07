@@ -1,0 +1,144 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Hospital Operations & SLA Analytics{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="font-size: 1.75rem; font-weight: 700;">Hospital Operational Analytics</h1>
+    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">
+      Real-time queue monitoring, radiologist workload balancing, and SLA compliance tracking.
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.75rem; align-items: center;">
+    <button class="btn btn-outline btn-sm" onclick="loadHospitalAnalytics()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      Refresh Data
+    </button>
+    <span class="badge badge-routine">Live Monitoring</span>
+  </div>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-title">Average Turnaround (TAT)</div>
+    <div class="kpi-value" id="kpi-avg-tat" style="color: var(--accent-cyan);">--</div>
+    <span style="font-size: 0.75rem; color: var(--text-dim);">Upload to Diagnostic Report</span>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-title">SLA Breach Rate</div>
+    <div class="kpi-value" id="kpi-breach-rate" style="color: var(--color-routine);">--</div>
+    <span style="font-size: 0.75rem; color: var(--text-dim);">Completed cases vs SLA target</span>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-title">Impending SLA At-Risk</div>
+    <div class="kpi-value" id="kpi-at-risk" style="color: var(--color-warning);">--</div>
+    <span style="font-size: 0.75rem; color: var(--text-dim);">&lt; 25% SLA margin remaining</span>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-title">Active Pending Cases</div>
+    <div class="kpi-value" id="kpi-pending-total">--</div>
+    <span style="font-size: 0.75rem; color: var(--text-dim);">Currently in processing queues</span>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-title">Total Reports Completed</div>
+    <div class="kpi-value" id="kpi-completed-total">--</div>
+    <span style="font-size: 0.75rem; color: var(--text-dim);">Archived & returned to clinics</span>
+  </div>
+</div>
+
+<!-- 2x2 Interactive Charts Grid -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+  
+  <!-- Chart 1: Radiologist Workload vs Capacity -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <h2 class="card-title">Specialist Workload vs Capacity</h2>
+      <span class="badge badge-status">Active Concurrency</span>
+    </div>
+    <div style="height: 280px; position: relative;">
+      <canvas id="chart-workload"></canvas>
+    </div>
+  </div>
+
+  <!-- Chart 2: Pending Queue by Priority -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <h2 class="card-title">Pending Cases by Priority</h2>
+      <span class="badge badge-status">Triage Queue</span>
+    </div>
+    <div style="height: 280px; position: relative;">
+      <canvas id="chart-pending-priority"></canvas>
+    </div>
+  </div>
+
+  <!-- Chart 3: 14-Day Throughput Trend -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <h2 class="card-title">Completed Reports Throughput (14-Day Trend)</h2>
+      <span class="badge badge-status">Daily Volume</span>
+    </div>
+    <div style="height: 280px; position: relative;">
+      <canvas id="chart-throughput"></canvas>
+    </div>
+  </div>
+
+  <!-- Chart 4: SLA Breach Rate by Priority -->
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-header">
+      <h2 class="card-title">SLA Breach Rate by Priority Class</h2>
+      <span class="badge badge-status">Target Compliance</span>
+    </div>
+    <div style="height: 280px; position: relative;">
+      <canvas id="chart-sla-breach"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- At-Risk Pending Cases Queue -->
+<div class="card" style="padding: 0;">
+  <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <h2 class="card-title" style="color: var(--color-warning);">Impending SLA Breach Queue (&lt; 25% Time Remaining)</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">
+        Urgent queue requiring priority reading attention before SLA deadline expiration.
+      </p>
+    </div>
+    <span class="badge badge-atrisk">Priority Escalation</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="worklist-table">
+      <thead>
+        <tr>
+          <th>Case ID</th>
+          <th>Patient Ref</th>
+          <th>Priority</th>
+          <th>Assigned Radiologist</th>
+          <th>Waiting Time</th>
+          <th>SLA Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="at-risk-body">
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            Analyzing queue margins...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Efficiency Experiment Results{% endblock %}
+
+{% block content %}
+<!-- Header & Claim Banner -->
+<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <h1 style="font-size: 1.85rem; font-weight: 700;">Workflow Efficiency Experiment</h1>
+      <span class="badge badge-routine">Statistical Evaluation</span>
+    </div>
+    <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 0.35rem; max-width: 900px;">
+      Empirical paired evaluation assessing the operational hypothesis:
+      <em style="color: var(--accent-cyan); font-weight: 500;">
+        "Context-aware similar-case retrieval reduces case-review time and improves workflow efficiency in a simulated tele-radiology workflow."
+      </em>
+    </p>
+  </div>
+
+  <div style="display: flex; gap: 0.75rem;">
+    <button id="btn-rerun" class="btn btn-primary" onclick="rerunExperiment()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      Re-run Simulation (N=100)
+    </button>
+    <a href="/hospital" class="btn btn-outline">Hospital Dashboard &rarr;</a>
+  </div>
+</div>
+
+<!-- Primary Comparison Table Card -->
+<div class="card" style="padding: 0; margin-bottom: 1.75rem;">
+  <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <h2 class="card-title">Comparative Performance Metrics (N=100 Paired Cases)</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">
+        Evaluated on the exact same queue arrivals, specialist routing rules, and capacity limits across all 3 modes.
+      </p>
+    </div>
+    <span class="badge badge-status">Paired Study Design</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="worklist-table">
+      <thead>
+        <tr>
+          <th>Evaluation Mode</th>
+          <th>Mean Review</th>
+          <th>Median Review</th>
+          <th>P90 Review</th>
+          <th>Review Reduction</th>
+          <th>Mean Turnaround</th>
+          <th>Turnaround Reduction</th>
+          <th>SLA Breach %</th>
+          <th>Radiologist Utilization</th>
+          <th>Shift Throughput</th>
+          <th>Wilcoxon p-value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr {% if r.mode == 'cbir_rerank' %}style="background: rgba(6, 182, 212, 0.05); font-weight: 500;"{% endif %}>
+          <td>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="badge {% if r.mode == 'baseline' %}badge-critical{% elif r.mode == 'cbir' %}badge-high{% else %}badge-routine{% endif %}">
+                {{ r.mode }}
+              </span>
+              <strong>
+                {% if r.mode == 'baseline' %}Standard (No CBIR)
+                {% elif r.mode == 'cbir' %}Visual CBIR (Top-10)
+                {% else %}Context-Aware Re-ranked
+                {% endif %}
+              </strong>
+            </div>
+          </td>
+          <td style="font-family: var(--font-mono);">{{ r.mean_review_mins }}m</td>
+          <td style="font-family: var(--font-mono);">{{ r.median_review_mins }}m</td>
+          <td style="font-family: var(--font-mono);">{{ r.p90_review_mins }}m</td>
+          <td>
+            {% if r.review_reduction_pct > 0 %}
+            <span class="badge badge-routine">+{{ r.review_reduction_pct }}% faster</span>
+            {% else %}
+            <span style="color: var(--text-dim);">&mdash;</span>
+            {% endif %}
+          </td>
+          <td style="font-family: var(--font-mono);">{{ r.mean_turnaround_mins }}m</td>
+          <td>
+            {% if r.turnaround_reduction_pct > 0 %}
+            <span class="badge badge-routine">+{{ r.turnaround_reduction_pct }}%</span>
+            {% else %}
+            <span style="color: var(--text-dim);">&mdash;</span>
+            {% endif %}
+          </td>
+          <td style="font-family: var(--font-mono);">{{ r.sla_breach_rate_pct }}%</td>
+          <td style="font-family: var(--font-mono);">{{ r.radiologist_utilization_pct }}%</td>
+          <td style="font-family: var(--font-mono); font-weight: 600; color: var(--accent-cyan);">
+            {{ r.throughput_per_8h_shift }} cases / 8h
+          </td>
+          <td style="font-family: var(--font-mono); font-size: 0.8rem;">
+            {% if r.mode == 'baseline' %}Reference
+            {% elif r.mode == 'cbir' %}<span style="color: var(--color-routine);">p = {{ stats.p_val_cbir }}</span>
+            {% else %}<span style="color: var(--color-routine);">p = {{ stats.p_val_rerank }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Embedded Publication Charts -->
+<div class="card" style="margin-bottom: 1.75rem;">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Matplotlib Empirical Distribution Visualizations</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">
+        Four-panel visualization illustrating reading review duration boxplots, turnaround bar charts, SLA compliance, and throughput scaling.
+      </p>
+    </div>
+    <a href="{{ url_for('static', filename='images/experiment_charts.png') }}" target="_blank" class="btn btn-outline btn-sm">
+      Open Full Resolution PNG &rarr;
+    </a>
+  </div>
+
+  <div style="text-align: center; background: var(--bg-surface); border-radius: var(--radius-sm); padding: 1rem; border: 1px solid var(--border-color);">
+    <img src="{{ url_for('static', filename='images/experiment_charts.png') }}?v=1" 
+         alt="Simulation Experiment Comparison Charts" 
+         style="max-width: 100%; height: auto; border-radius: var(--radius-sm); box-shadow: var(--shadow);">
+  </div>
+</div>
+
+<!-- Methodology & Assumptions Panel -->
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">Methodology, Queueing Flow & Statistical Rigor</h2>
+    <span class="badge badge-status">Transparency & Explainability</span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; font-size: 0.9rem; line-height: 1.6;">
+    <div>
+      <h3 style="color: var(--text-main); font-size: 1rem; margin-bottom: 0.5rem;">Queueing & Arrival Model</h3>
+      <ul style="color: var(--text-muted); padding-left: 1.25rem;">
+        <li><strong>Arrival Process</strong>: Poisson point process calibrated to peak clinic intake (&lambda; = {{ sim_config.arrival_rate_per_hour }} cases/hour).</li>
+        <li><strong>Cohort Uniformity</strong>: All 3 experimental modes process the exact same sequence of N = {{ sim_config.num_cases }} cases (seed = {{ sim_config.random_seed }}).</li>
+        <li><strong>Specialist Routing</strong>: Fully simulated through the real routing engine code (subspecialty matching + capacity ceiling + priority-weighted load balancing).</li>
+        <li><strong>Dynamic Starvation Term</strong>: Waiting time term (+0.05 pts/min capped at 20 pts) prevents routine study starvation.</li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 style="color: var(--text-main); font-size: 1rem; margin-bottom: 0.5rem;">Review Time Modeling & Overrides</h3>
+      <ul style="color: var(--text-muted); padding-left: 1.25rem;">
+        <li><strong>Base Review Distribution</strong>: Lognormal distribution parameterized by anatomical modality and clinical priority (&sigma; = 0.30).</li>
+        <li><strong>Relevance Modulation</strong>: CBIR reduction factors (&delta;<sub>cbir</sub> = {{ sim_config.cbir_time_reduction_factor * 100 }}%, &delta;<sub>rerank</sub> = {{ sim_config.cbir_rerank_time_reduction_factor * 100 }}%) are scaled dynamically by retrieval precision (Precision@10).</li>
+        <li><strong>Measured Data Override</strong>: If empirical timings are gathered from radiologist readers and placed at <code style="font-family: var(--font-mono); color: var(--accent-cyan);">outputs/measured_review_times.csv</code>, they automatically supersede the synthetic model.</li>
+        <li><strong>Paired Hypothesis Test</strong>: Non-parametric paired Wilcoxon signed-rank test and 95% bootstrap confidence intervals confirm statistical significance without assuming normal variance.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function rerunExperiment() {
+  const btn = document.getElementById("btn-rerun");
+  btn.disabled = true;
+  btn.textContent = "Simulating Queues...";
+
+  try {
+    const res = await fetch("/api/experiment/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cases: 100, seed: 42 }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.message || "Simulation failed");
+
+    alert("Simulation completed successfully! Refreshing results.");
+    window.location.reload();
+  } catch (err) {
+    alert("Error: " + err.message);
+    btn.disabled = false;
+    btn.textContent = "Re-run Simulation (N=100)";
+  }
+}
+</script>
+{% endblock %}

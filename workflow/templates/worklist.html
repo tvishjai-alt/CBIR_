@@ -1,0 +1,218 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Worklist - {{ rad.name }} ({{ rad.subspecialty }}){% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <h1 style="font-size: 1.6rem; font-weight: 700;">{{ rad.name }}</h1>
+        <span class="badge {% if rad.subspecialty == 'Neuro' %}badge-critical{% elif rad.subspecialty == 'Chest' %}badge-high{% else %}badge-routine{% endif %}">
+          {{ rad.subspecialty }} Specialist
+        </span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
+        ID: <span style="font-family: var(--font-mono);">{{ rad.rad_id }}</span> &bull; 
+        Max Capacity: <strong>{{ rad.max_capacity }} cases</strong> &bull; 
+        Avg Turnaround: <strong>{{ rad.avg_report_minutes }} mins</strong>
+      </p>
+    </div>
+
+    <div style="display: flex; gap: 0.75rem;">
+      <button id="btn-rebalance" class="btn btn-outline btn-sm" onclick="triggerRebalance()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        Rebalance Queues
+      </button>
+      <a href="{{ url_for('page_role_select') }}" class="btn btn-outline btn-sm">
+        Switch Specialist
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Filters & Summary Bar -->
+<div class="card" style="padding: 1rem 1.5rem; margin-bottom: 1.5rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+      <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Filter Priority:</span>
+      <button class="btn btn-outline btn-sm filter-btn active" data-filter="all">All</button>
+      <button class="btn btn-outline btn-sm filter-btn" data-filter="Critical">Critical</button>
+      <button class="btn btn-outline btn-sm filter-btn" data-filter="High">High</button>
+      <button class="btn btn-outline btn-sm filter-btn" data-filter="Routine">Routine</button>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <input type="text" id="search-input" placeholder="Search case or patient..." 
+             style="background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-main); padding: 0.35rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">
+      <span id="case-count-badge" class="badge badge-status">Loading...</span>
+    </div>
+  </div>
+</div>
+
+<!-- Prioritized Worklist Table -->
+<div class="card" style="padding: 0;">
+  <div class="table-responsive">
+    <table class="worklist-table" id="worklist-table">
+      <thead>
+        <tr>
+          <th>Priority</th>
+          <th>Score</th>
+          <th>Case ID</th>
+          <th>Patient Ref</th>
+          <th>Modality & Region</th>
+          <th>Clinic</th>
+          <th>Waiting Time</th>
+          <th>SLA Window</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="worklist-body">
+        <tr>
+          <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+            Loading prioritized worklist...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const radId = "{{ rad.rad_id }}";
+let worklistData = [];
+let currentFilter = 'all';
+
+async function loadWorklist() {
+  try {
+    const res = await fetch(`/api/worklist/${radId}`);
+    if (!res.ok) throw new Error("Failed to load worklist");
+    const json = await res.json();
+    worklistData = json.worklist || [];
+    renderWorklist();
+  } catch (err) {
+    document.getElementById("worklist-body").innerHTML = `
+      <tr>
+        <td colspan="10" style="text-align: center; color: var(--color-critical); padding: 2rem;">
+          Error loading worklist: ${err.message}
+        </td>
+      </tr>
+    `;
+  }
+}
+
+function renderWorklist() {
+  const tbody = document.getElementById("worklist-body");
+  const search = document.getElementById("search-input").value.toLowerCase().trim();
+
+  const filtered = worklistData.filter(c => {
+    const matchesPriority = currentFilter === 'all' || c.priority_label === currentFilter;
+    const matchesSearch = !search || 
+      c.case_id.toLowerCase().includes(search) || 
+      c.patient_ref.toLowerCase().includes(search) || 
+      c.body_part.toLowerCase().includes(search);
+    return matchesPriority && matchesSearch;
+  });
+
+  document.getElementById("case-count-badge").textContent = `${filtered.length} active case(s)`;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" style="text-align: center; color: var(--text-dim); padding: 3rem;">
+          <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">No cases currently in queue.</p>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">
+            All assignments are up to date. New cases will appear here automatically when routed.
+          </span>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(c => {
+    const badgeClass = c.priority_label === 'Critical' ? 'badge-critical' :
+                       c.priority_label === 'High' ? 'badge-high' : 'badge-routine';
+
+    // SLA display calculation
+    let slaBadge = "";
+    if (c.is_breached) {
+      slaBadge = `<span class="badge badge-critical">BREACHED (${Math.abs(c.sla_remaining_minutes)}m late)</span>`;
+    } else if (c.is_at_risk) {
+      slaBadge = `<span class="badge badge-atrisk">AT-RISK (${c.sla_remaining_minutes}m left)</span>`;
+    } else {
+      slaBadge = `<span style="color: var(--text-muted); font-size: 0.85rem;">${c.sla_remaining_minutes}m left (${c.sla_limit_minutes}m SLA)</span>`;
+    }
+
+    return `
+      <tr>
+        <td>
+          <span class="badge ${badgeClass}">${c.priority_label}</span>
+          ${c.urgency_flag ? '<span class="badge badge-critical" style="margin-left: 4px; font-size: 0.65rem;">STAT</span>' : ''}
+        </td>
+        <td>
+          <strong style="color: var(--text-main);">${c.priority_score}</strong>
+          <span style="display: block; font-size: 0.7rem; color: var(--text-dim);" title="${c.priority_breakdown?.explanation || ''}">
+            Explain &bull;
+          </span>
+        </td>
+        <td style="font-family: var(--font-mono); font-weight: 600;">${c.case_id}</td>
+        <td style="font-family: var(--font-mono); color: var(--accent-cyan);">${c.patient_ref}</td>
+        <td>
+          <strong>${c.modality}</strong>
+          <span style="color: var(--text-muted); display: block; font-size: 0.8rem;">${c.body_part}</span>
+        </td>
+        <td style="color: var(--text-muted); font-size: 0.85rem;">${c.clinic_name || c.clinic_id}</td>
+        <td style="font-family: var(--font-mono); color: var(--text-muted);">${c.waiting_minutes}m</td>
+        <td>${slaBadge}</td>
+        <td>
+          <span class="badge badge-status">${c.status}</span>
+        </td>
+        <td>
+          <a href="/case/${c.case_id}" class="btn btn-primary btn-sm">
+            Read Case &rarr;
+          </a>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// Filter listeners
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    renderWorklist();
+  });
+});
+
+document.getElementById('search-input').addEventListener('input', renderWorklist);
+
+async function triggerRebalance() {
+  const btn = document.getElementById("btn-rebalance");
+  btn.disabled = true;
+  btn.textContent = "Rebalancing...";
+  try {
+    const res = await fetch("/api/rebalance", { method: "POST" });
+    const json = await res.json();
+    alert(json.message);
+    loadWorklist();
+  } catch (err) {
+    alert("Rebalance failed: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Rebalance Queues`;
+  }
+}
+
+// Initial load
+loadWorklist();
+// Auto refresh every 30 seconds
+setInterval(loadWorklist, 30000);
+</script>
+{% endblock %}

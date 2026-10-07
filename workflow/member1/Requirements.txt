@@ -1,0 +1,7 @@
+flask
+pandas
+numpy
+pillow
+faiss-cpu
+# torch and torchvision are installed separately (CPU build, smaller download):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu

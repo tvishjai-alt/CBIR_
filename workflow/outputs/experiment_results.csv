@@ -1,0 +1,4 @@
+mode,mean_review_mins,median_review_mins,p90_review_mins,review_reduction_pct,mean_turnaround_mins,median_turnaround_mins,p90_turnaround_mins,turnaround_reduction_pct,sla_breach_rate_pct,radiologist_utilization_pct,throughput_per_8h_shift
+baseline,11.21,9.44,20.5,-0.0,31.08,16.5,66.68,-0.0,4.0,52.8,135.8
+cbir,9.88,8.36,18.53,11.8,25.68,13.55,62.77,17.4,3.0,49.6,144.6
+cbir_rerank,8.99,7.67,17.2,19.8,22.62,13.09,52.43,27.2,1.0,47.9,153.3
